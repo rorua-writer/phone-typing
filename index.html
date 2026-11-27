@@ -229,14 +229,24 @@ button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-off
 <script>
 {
 const $=id=>document.getElementById(id);
-// 한글 조합 중에 칸을 비우면 키보드가 조합 중이던 글자를 다음 칸에 다시 넣어요.
-// 조합 중이면 칸을 잠깐 놓았다가(blur) 다시 잡아서 조합을 끝낸 뒤 비워요.
-let IMEON=false,IMEBUSY=false;
-document.addEventListener('compositionstart',()=>{IMEON=true},true);
-document.addEventListener('compositionend',()=>{IMEON=false},true);
+// 한글 조합 중에 칸을 비우면 PC 한글 입력기가 조합 중이던 글자를 다음에 칠 때 앞에 다시 넣어요.
+// 그래서 (1) 칸을 잠깐 놓았다가 다시 잡아 조합을 끝내고, (2) 그래도 그 글자가 되돌아오면 지워요.
 // 폰 키보드는 이 문제가 없어서 PC에서만 적용해요 (폰 동작은 그대로).
+let IMEON=false,IMEBUSY=false;
 const IMEFIX=!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)&&!(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
-function endIME(el){if(!IMEFIX||!IMEON||document.activeElement!==el)return;IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}}
+const STALE=new WeakMap();// 칸 → {s:되돌아올 수 있는 글자, hold:지금 막고 있는 중}
+function unstale(el){const st=STALE.get(el);if(!st)return;STALE.delete(el);
+  if(el.value.startsWith(st.s)){el.value=el.value.slice(st.s.length);el.dispatchEvent(new Event('input'))}}
+document.addEventListener('compositionstart',()=>{IMEON=true},true);
+document.addEventListener('compositionend',e=>{IMEON=false;if(IMEBUSY)return;const st=STALE.get(e.target);if(st&&st.hold)setTimeout(()=>unstale(e.target),0)},true);
+document.addEventListener('input',e=>{if(IMEBUSY)return;const el=e.target,st=STALE.get(el);if(!st)return;
+  if(st.hold||(el.value.startsWith(st.s)&&el.value.length>=st.s.length)){
+    // 빈 칸에 한 번에 완성 글자가 통째로 들어온 건 사람이 친 게 아니라 되돌아온 글자예요.
+    st.hold=true;e.stopImmediatePropagation();if(!e.isComposing&&!IMEON)unstale(el);return}
+  STALE.delete(el)},true);
+function endIME(el){if(!IMEFIX||!IMEON||document.activeElement!==el)return;const s=[...el.value].pop();
+  IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}
+  if(s)STALE.set(el,{s,hold:false})}
 function clearIn(el){endIME(el);el.value=''}
 const CATS=[
 ['안부',['잘 지내지? 요즘 날이 많이 춥다.','밥은 챙겨 먹고 다녀?','감기 조심하고 따뜻하게 입어.','오랜만이네! 요즘 어떻게 지내?','주말 잘 보냈어요?','많이 바쁘지? 시간 될 때 연락 줘.','푹 자고 내일 봐요. 잘 자요~','몸은 좀 괜찮아요? 무리하지 마요.','오늘 진짜 웃겼어 ㅋㅋㅋ']],
