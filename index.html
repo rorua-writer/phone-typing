@@ -229,6 +229,13 @@ button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-off
 <script>
 {
 const $=id=>document.getElementById(id);
+// 한글 조합 중에 칸을 비우면 키보드가 조합 중이던 글자를 다음 칸에 다시 넣어요.
+// 조합 중이면 칸을 잠깐 놓았다가(blur) 다시 잡아서 조합을 끝낸 뒤 비워요.
+let IMEON=false,IMEBUSY=false;
+document.addEventListener('compositionstart',()=>{IMEON=true},true);
+document.addEventListener('compositionend',()=>{IMEON=false},true);
+function endIME(el){if(!IMEON||document.activeElement!==el)return;IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}}
+function clearIn(el){endIME(el);el.value=''}
 const CATS=[
 ['안부',['잘 지내지? 요즘 날이 많이 춥다.','밥은 챙겨 먹고 다녀?','감기 조심하고 따뜻하게 입어.','오랜만이네! 요즘 어떻게 지내?','주말 잘 보냈어요?','많이 바쁘지? 시간 될 때 연락 줘.','푹 자고 내일 봐요. 잘 자요~','몸은 좀 괜찮아요? 무리하지 마요.','오늘 진짜 웃겼어 ㅋㅋㅋ']],
 ['약속·만남',['토요일 점심에 시간 괜찮아?','몇 시에 어디서 볼까?','지금 가는 중이야. 십 분 뒤에 도착해.','늦어서 미안해. 금방 갈게.','나 먼저 도착했어. 입구 앞에 있어.','오늘은 일이 생겨서 다음에 보자.','주말에 시간 괜찮으면 같이 밥 먹자.','도착하면 전화할게요.']],
@@ -294,7 +301,7 @@ function startPrac(kind){
   if(kind==='sym')$('cats').innerHTML=SYM.map((c,i)=>'<button type="button" data-c="'+i+'" class="'+(i===SCAT?'on':'')+'">'+esc(c[0])+'</button>').join('');
   show('prac');loadSentence();$('pIn').focus();
 }
-function loadSentence(){setTimeout(()=>{if(PS&&!$('prac').hidden)say(P.list[P.i],'pNote')},250);srcText();P.t0=0;P.lock=false;$('pIn').value='';$('pStep').textContent=(P.i+1)+' / '+P.list.length;$('pBar').style.width=(P.i/P.list.length*100)+'%';$('target').classList.remove('done');paint('');$('sSpeed').textContent='0';$('sAcc').textContent='100%';$('sTime').textContent='0초'}
+function loadSentence(){setTimeout(()=>{if(PS&&!$('prac').hidden)say(P.list[P.i],'pNote')},250);srcText();P.t0=0;P.lock=false;clearIn($('pIn'));$('pStep').textContent=(P.i+1)+' / '+P.list.length;$('pBar').style.width=(P.i/P.list.length*100)+'%';$('target').classList.remove('done');paint('');$('sSpeed').textContent='0';$('sAcc').textContent='100%';$('sTime').textContent='0초'}
 function paint(v){
   const t=P.list[P.i];let h='';
   [...t].forEach((c,k)=>{let cl='',shown=c;if(k<v.length){cl=v[k]===c?'ok':(k===v.length-1?'':'bad')}else{if(k===v.length)cl='cur';if(PS&&c!==' '){shown='○';cl+=' hid'}}h+='<span class="'+cl+'">'+(shown===' '?'&nbsp;':esc(shown==='♥'?HEART[KB]:shown))+'</span>'});
@@ -309,12 +316,12 @@ function live(){
 }
 setInterval(()=>{if(!$('prac').hidden)live()},250);
 $('pIn').addEventListener('input',()=>{
-  if(P.lock)return;const v=norm($('pIn').value);
+  if(IMEBUSY||P.lock)return;const v=norm($('pIn').value);
   if(!P.t0&&v)P.t0=performance.now();
   paint(v);live();
-  if(v===P.list[P.i]){P.lock=true;$('target').classList.add('done');setTimeout(finishSentence,350)}
+  if(v===P.list[P.i]){P.lock=true;endIME($('pIn'));$('target').classList.add('done');setTimeout(finishSentence,350)}
 });
-$('pForm').addEventListener('submit',e=>{e.preventDefault();if(P.lock)return;const v=norm($('pIn').value);if(!v){$('pIn').classList.remove('shake');void $('pIn').offsetWidth;$('pIn').classList.add('shake');return}P.lock=true;finishSentence()});
+$('pForm').addEventListener('submit',e=>{e.preventDefault();if(P.lock)return;endIME($('pIn'));const v=norm($('pIn').value);if(!v){$('pIn').classList.remove('shake');void $('pIn').offsetWidth;$('pIn').classList.add('shake');return}P.lock=true;finishSentence()});
 function finishSentence(){
   const v=norm($('pIn').value),t=P.list[P.i],sec=Math.max(0.5,(performance.now()-(P.t0||performance.now()))/1000);
   P.right+=score(v);P.total+=Math.max(t.length,v.length);P.totalTime+=sec;
@@ -378,7 +385,7 @@ function showQ(){
   const q=Q.deck.pop();Q.cur=q;Q.lock=false;Q.left=QT;Q.hinted=false;
   const ans=q[2].split('|')[0];
   $('qTag').textContent=q[0]+' · '+[...ans].length+'글자';$('qText').className='qtext';$('qText').textContent=q[1];
-  $('qFb').className='qfb';$('qFb').textContent='';$('gIn').value='';
+  $('qFb').className='qfb';$('qFb').textContent='';clearIn($('gIn'));
   clearInterval(qTimer);const t0=performance.now();
   qTimer=setInterval(()=>{if(Q.lock)return;Q.left=Math.max(0,QT-(performance.now()-t0)/1000);$('qBar').style.width=(Q.left/QT*100)+'%';
     if(!Q.hinted&&Q.left<QT*2/3){Q.hinted=true;$('qFb').className='qfb';$('qFb').textContent='힌트: '+chosung(ans)}
@@ -387,10 +394,10 @@ function showQ(){
 function isRight(v){return Q.cur[2].split('|').some(a=>nz(a)===nz(v))}
 function check(v,strict){
   if(!Q||Q.over||Q.lock)return;if(!v.trim())return;
-  if(isRight(v)){Q.lock=true;Q.streak++;const pts=10+Math.ceil(Q.left*2)+(Q.streak>=3?5:0);Q.score+=pts;Q.right++;$('qFb').className='qfb ok';$('qFb').textContent='정답! +'+pts+'점';qHud();setTimeout(()=>{$('gIn').value=''},0);setTimeout(nextQ,600)}
-  else if(strict){$('qFb').className='qfb bad';$('qFb').textContent='아니에요!';const i=$('gIn');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake');setTimeout(()=>{i.value=''},0)}
+  if(isRight(v)){Q.lock=true;Q.streak++;const pts=10+Math.ceil(Q.left*2)+(Q.streak>=3?5:0);Q.score+=pts;Q.right++;$('qFb').className='qfb ok';$('qFb').textContent='정답! +'+pts+'점';qHud();clearIn($('gIn'));setTimeout(nextQ,600)}
+  else if(strict){$('qFb').className='qfb bad';$('qFb').textContent='아니에요!';const i=$('gIn');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake');clearIn(i)}
 }
-function miss(msg,free){if(!Q||Q.lock)return;Q.lock=true;if(!free)Q.lives--;Q.streak=0;qHud();$('qFb').className='qfb bad';$('qFb').textContent=msg+' 정답은 「'+Q.cur[2].split('|')[0]+'」';setTimeout(()=>{$('gIn').value=''},0);setTimeout(()=>{Q.lives<=0?endQuiz():nextQ()},1300)}
+function miss(msg,free){if(!Q||Q.lock)return;Q.lock=true;if(!free)Q.lives--;Q.streak=0;qHud();$('qFb').className='qfb bad';$('qFb').textContent=msg+' 정답은 「'+Q.cur[2].split('|')[0]+'」';clearIn($('gIn'));setTimeout(()=>{Q.lives<=0?endQuiz():nextQ()},1300)}
 function nextQ(){if(!Q||Q.over)return;showQ()}
 function endQuiz(){
   clearInterval(qTimer);Q.over=true;const old=rec.rain||0;if(Q.score>old){rec.rain=Q.score;saveRec()}
@@ -398,8 +405,8 @@ function endQuiz(){
   $('qFb').className='qfb';$('qFb').textContent=Q.right+'문제 맞혔어요.'+(Q.score>old?' 새 최고 기록!':(old?' 최고 기록은 '+old+'점.':''));
   $('qStart').hidden=false;$('qStart').textContent='다시 하기';$('qModes').hidden=false;$('qTimes').hidden=false;
 }
-$('gIn').addEventListener('input',()=>check($('gIn').value,false));
-$('gForm').addEventListener('submit',e=>{e.preventDefault();if(!Q||Q.over){startQuiz();return}check($('gIn').value,true)});
+$('gIn').addEventListener('input',()=>{if(!IMEBUSY)check($('gIn').value,false)});
+$('gForm').addEventListener('submit',e=>{e.preventDefault();if(!Q||Q.over){startQuiz();return}endIME($('gIn'));check($('gIn').value,true)});
 $('qSkip').addEventListener('click',()=>{if(Q&&!Q.over)miss('넘겼어요.',true);$('gIn').focus()});
 $('qStart').addEventListener('click',startQuiz);
 /* ---------- 자리 연습 ---------- */
@@ -429,7 +436,7 @@ $('kSnd').addEventListener('change',()=>{K.snd=$('kSnd').checked;saveK();$('kRep
 $('kRep').addEventListener('click',()=>{if(!K.over)say(NAMES[K.q[K.i]]||K.q[K.i],'kNote');$('kIn').focus()});
 $('kHide').addEventListener('change',()=>{K.hide=$('kHide').checked;saveK();drawKb();$('kIn').focus()});
 function newRound(){const set=[...LV[K.lay][Math.min(K.lv,LV[K.lay].length-1)][1]];let q=[],prev='';for(let i=0;i<20;i++){let c;do{c=set[Math.random()*set.length|0]}while(c===prev&&set.length>1);q.push(c);prev=c}
-  K.q=q;K.i=0;K.t0=0;K.last=0;K.err=0;K.times=[];K.over=false;$('kIn').value='';$('jSpd').textContent='–';showJamo()}
+  K.q=q;K.i=0;K.t0=0;K.last=0;K.err=0;K.times=[];K.over=false;clearIn($('kIn'));$('jSpd').textContent='–';showJamo()}
 function showJamo(){
   const t=K.q[K.i];$('jCh').textContent=K.snd?'?':t;$('jCh').className='ch';
   if(K.snd)say(NAMES[t]||t,'kNote');
@@ -458,18 +465,18 @@ function drawKb(){
     kb.innerHTML=CJK.map(k=>'<span class="k'+(k.length?'':' e')+((t&&(k.includes(t)||(seq&&seq.includes(k[0]))))?' hl':'')+'">'+(k.join('')||'&nbsp;')+'</span>').join('')}
 }
 $('kIn').addEventListener('input',e=>{
-  if(K.over||(e.inputType||'').startsWith('delete'))return;
+  if(IMEBUSY||K.over||(e.inputType||'').startsWith('delete'))return;
   const v=$('kIn').value;if(!v)return;const j=lastJamo(v),t=K.q[K.i],now=performance.now();
   if(!K.t0){K.t0=now;K.last=now}
   if(j===t){
     if(K.i>0||K.times.length)K.times.push(now-K.last);K.last=now;
     $('jCh').textContent=t;$('jCh').className='ch okf';K.i++;
     if(K.times.length)$('jSpd').textContent=(K.times.reduce((a,b)=>a+b,0)/K.times.length/1000).toFixed(2)+'초';
-    setTimeout(()=>{$('kIn').value=''},0);
+    clearIn($('kIn'));
     if(K.i>=20)return endPos();
     setTimeout(()=>{if(!K.over)showJamo()},K.snd?350:120);
-  }else if(K.lay==='qw'){K.err++;$('jCh').className='ch badf';setTimeout(()=>{$('kIn').value='';if(!K.over)$('jCh').className='ch'},180)}
-  else if([...v].length>3)setTimeout(()=>{$('kIn').value=''},0);
+  }else if(K.lay==='qw'){K.err++;$('jCh').className='ch badf';setTimeout(()=>{clearIn($('kIn'));if(!K.over)$('jCh').className='ch'},180)}
+  else if([...v].length>3)clearIn($('kIn'));
 });
 $('kForm').addEventListener('submit',e=>{e.preventDefault();if(K.over){newRound()}});
 function endPos(){
