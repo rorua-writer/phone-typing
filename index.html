@@ -234,7 +234,9 @@ const $=id=>document.getElementById(id);
 let IMEON=false,IMEBUSY=false;
 document.addEventListener('compositionstart',()=>{IMEON=true},true);
 document.addEventListener('compositionend',()=>{IMEON=false},true);
-function endIME(el){if(!IMEON||document.activeElement!==el)return;IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}}
+// 폰 키보드는 이 문제가 없어서 PC에서만 적용해요 (폰 동작은 그대로).
+const IMEFIX=!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)&&!(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+function endIME(el){if(!IMEFIX||!IMEON||document.activeElement!==el)return;IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}}
 function clearIn(el){endIME(el);el.value=''}
 const CATS=[
 ['안부',['잘 지내지? 요즘 날이 많이 춥다.','밥은 챙겨 먹고 다녀?','감기 조심하고 따뜻하게 입어.','오랜만이네! 요즘 어떻게 지내?','주말 잘 보냈어요?','많이 바쁘지? 시간 될 때 연락 줘.','푹 자고 내일 봐요. 잘 자요~','몸은 좀 괜찮아요? 무리하지 마요.','오늘 진짜 웃겼어 ㅋㅋㅋ']],
