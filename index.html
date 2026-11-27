@@ -144,7 +144,7 @@ button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-off
     <button class="row" data-go="quote"><span><b>속담·명언·성경</b><small>오래 남은 좋은 말 따라 치기</small></span><em id="rec-quote"></em></button>
     <button class="row" data-go="sym"><span><b>기호 연습</b><small>! ~ ^^ ♥ # 내 폰에서 찾아 치기</small></span><em id="rec-sym"></em></button>
     <button class="row" data-go="pos"><span><b>자리 연습</b><small>자판 자리를 익혀 안 보고 치기</small></span><em id="rec-pos"></em></button>
-    <button class="row" data-go="rain"><span><b>낱말 퀴즈</b><small>상식·가수·속담 문제를 보고 빨리 쳐서 맞히기</small></span><em id="rec-rain"></em></button>
+    <button class="row" data-go="rain"><span><b>낱말 퀴즈</b><small>상식·속담·채팅 말 문제를 보고 빨리 쳐서 맞히기</small></span><em id="rec-rain"></em></button>
   </div>
 </section>
 
@@ -229,6 +229,25 @@ button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-off
 <script>
 {
 const $=id=>document.getElementById(id);
+// 한글 조합 중에 칸을 비우면 PC 한글 입력기가 조합 중이던 글자를 다음에 칠 때 앞에 다시 넣어요.
+// 그래서 (1) 칸을 잠깐 놓았다가 다시 잡아 조합을 끝내고, (2) 그래도 그 글자가 되돌아오면 지워요.
+// 폰 키보드는 이 문제가 없어서 PC에서만 적용해요 (폰 동작은 그대로).
+let IMEON=false,IMEBUSY=false;
+const IMEFIX=!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)&&!(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+const STALE=new WeakMap();// 칸 → {s:되돌아올 수 있는 글자, hold:지금 막고 있는 중}
+function unstale(el){const st=STALE.get(el);if(!st)return;STALE.delete(el);
+  if(el.value.startsWith(st.s)){el.value=el.value.slice(st.s.length);el.dispatchEvent(new Event('input'))}}
+document.addEventListener('compositionstart',()=>{IMEON=true},true);
+document.addEventListener('compositionend',e=>{IMEON=false;if(IMEBUSY)return;const st=STALE.get(e.target);if(st&&st.hold)setTimeout(()=>unstale(e.target),0)},true);
+document.addEventListener('input',e=>{if(IMEBUSY)return;const el=e.target,st=STALE.get(el);if(!st)return;
+  if(st.hold||(el.value.startsWith(st.s)&&el.value.length>=st.s.length)){
+    // 빈 칸에 한 번에 완성 글자가 통째로 들어온 건 사람이 친 게 아니라 되돌아온 글자예요.
+    st.hold=true;e.stopImmediatePropagation();if(!e.isComposing&&!IMEON)unstale(el);return}
+  STALE.delete(el)},true);
+function endIME(el){if(!IMEFIX||!IMEON||document.activeElement!==el)return;const s=[...el.value].pop();
+  IMEBUSY=true;try{el.blur();el.focus({preventScroll:true})}finally{IMEBUSY=false;IMEON=false}
+  if(s)STALE.set(el,{s,hold:false})}
+function clearIn(el){endIME(el);el.value=''}
 const CATS=[
 ['안부',['잘 지내지? 요즘 날이 많이 춥다.','밥은 챙겨 먹고 다녀?','감기 조심하고 따뜻하게 입어.','오랜만이네! 요즘 어떻게 지내?','주말 잘 보냈어요?','많이 바쁘지? 시간 될 때 연락 줘.','푹 자고 내일 봐요. 잘 자요~','몸은 좀 괜찮아요? 무리하지 마요.','오늘 진짜 웃겼어 ㅋㅋㅋ']],
 ['약속·만남',['토요일 점심에 시간 괜찮아?','몇 시에 어디서 볼까?','지금 가는 중이야. 십 분 뒤에 도착해.','늦어서 미안해. 금방 갈게.','나 먼저 도착했어. 입구 앞에 있어.','오늘은 일이 생겨서 다음에 보자.','주말에 시간 괜찮으면 같이 밥 먹자.','도착하면 전화할게요.']],
@@ -294,7 +313,7 @@ function startPrac(kind){
   if(kind==='sym')$('cats').innerHTML=SYM.map((c,i)=>'<button type="button" data-c="'+i+'" class="'+(i===SCAT?'on':'')+'">'+esc(c[0])+'</button>').join('');
   show('prac');loadSentence();$('pIn').focus();
 }
-function loadSentence(){setTimeout(()=>{if(PS&&!$('prac').hidden)say(P.list[P.i],'pNote')},250);srcText();P.t0=0;P.lock=false;$('pIn').value='';$('pStep').textContent=(P.i+1)+' / '+P.list.length;$('pBar').style.width=(P.i/P.list.length*100)+'%';$('target').classList.remove('done');paint('');$('sSpeed').textContent='0';$('sAcc').textContent='100%';$('sTime').textContent='0초'}
+function loadSentence(){setTimeout(()=>{if(PS&&!$('prac').hidden)say(P.list[P.i],'pNote')},250);srcText();P.t0=0;P.lock=false;clearIn($('pIn'));$('pStep').textContent=(P.i+1)+' / '+P.list.length;$('pBar').style.width=(P.i/P.list.length*100)+'%';$('target').classList.remove('done');paint('');$('sSpeed').textContent='0';$('sAcc').textContent='100%';$('sTime').textContent='0초'}
 function paint(v){
   const t=P.list[P.i];let h='';
   [...t].forEach((c,k)=>{let cl='',shown=c;if(k<v.length){cl=v[k]===c?'ok':(k===v.length-1?'':'bad')}else{if(k===v.length)cl='cur';if(PS&&c!==' '){shown='○';cl+=' hid'}}h+='<span class="'+cl+'">'+(shown===' '?'&nbsp;':esc(shown==='♥'?HEART[KB]:shown))+'</span>'});
@@ -309,12 +328,12 @@ function live(){
 }
 setInterval(()=>{if(!$('prac').hidden)live()},250);
 $('pIn').addEventListener('input',()=>{
-  if(P.lock)return;const v=norm($('pIn').value);
+  if(IMEBUSY||P.lock)return;const v=norm($('pIn').value);
   if(!P.t0&&v)P.t0=performance.now();
   paint(v);live();
-  if(v===P.list[P.i]){P.lock=true;$('target').classList.add('done');setTimeout(finishSentence,350)}
+  if(v===P.list[P.i]){P.lock=true;endIME($('pIn'));$('target').classList.add('done');setTimeout(finishSentence,350)}
 });
-$('pForm').addEventListener('submit',e=>{e.preventDefault();if(P.lock)return;const v=norm($('pIn').value);if(!v){$('pIn').classList.remove('shake');void $('pIn').offsetWidth;$('pIn').classList.add('shake');return}P.lock=true;finishSentence()});
+$('pForm').addEventListener('submit',e=>{e.preventDefault();if(P.lock)return;endIME($('pIn'));const v=norm($('pIn').value);if(!v){$('pIn').classList.remove('shake');void $('pIn').offsetWidth;$('pIn').classList.add('shake');return}P.lock=true;finishSentence()});
 function finishSentence(){
   const v=norm($('pIn').value),t=P.list[P.i],sec=Math.max(0.5,(performance.now()-(P.t0||performance.now()))/1000);
   P.right+=score(v);P.total+=Math.max(t.length,v.length);P.totalTime+=sec;
@@ -350,19 +369,16 @@ const QZ=[
 ['상식','꿀을 모으는 곤충은?','꿀벌|벌'],['상식','피를 온몸으로 보내는 몸속 기관은?','심장'],['상식','식물이 햇빛으로 양분을 만드는 일은?','광합성'],['상식','사과가 떨어지는 걸 보고 만유인력을 떠올렸다는 과학자는?','뉴턴'],['상식','모나리자를 그린 화가는?','레오나르도다빈치|다빈치'],
 ['상식','이집트의 거대한 돌무덤은?','피라미드'],['상식','오만 원권에 그려진 인물은?','신사임당'],['상식','만 원권에 그려진 인물은?','세종대왕|세종'],['상식','설날 아침에 먹는 음식은?','떡국'],['상식','추석에 빚어 먹는 떡은?','송편'],
 ['상식','동짓날 먹는 붉은 죽은?','팥죽'],['상식','정월 대보름에 깨물어 먹는 견과류를 이르는 말은?','부럼'],['상식','대한민국 국기의 이름은?','태극기'],['상식','물이 얼면 무엇이 될까?','얼음'],['상식','생일 아침에 먹는 국은?','미역국'],
-['가수','\'강남스타일\'을 부른 가수는?','싸이'],['가수','\'좋은 날\'을 부른 가수는?','아이유'],['가수','\'Dynamite\'를 부른 그룹은?','방탄소년단|방탄|bts'],['가수','\'봄날\'을 부른 그룹은?','방탄소년단|방탄|bts'],['가수','\'APT.\'를 부른 가수는? (브루노 마스와 함께)','로제'],
-['가수','\'밤양갱\'을 부른 가수는?','비비'],['가수','\'사건의 지평선\'을 부른 가수는?','윤하'],['가수','\'Gee\'를 부른 그룹은?','소녀시대'],['가수','\'Tell Me\'를 부른 그룹은?','원더걸스'],['가수','\'뚜두뚜두\'를 부른 그룹은?','블랙핑크'],
-['가수','\'Hype Boy\'를 부른 그룹은?','뉴진스'],['가수','\'난 알아요\'를 부른 그룹은?','서태지와아이들|서태지'],['가수','\'어머나\'를 부른 트로트 가수는?','장윤정'],['가수','\'아모르 파티\'를 부른 가수는?','김연자'],['가수','\'사랑의 배터리\'를 부른 가수는?','홍진영'],
-['가수','\'이제 나만 믿어요\'를 부른 가수는?','임영웅'],['가수','\'찐이야\'를 부른 가수는?','영탁'],['가수','\'테스형!\'을 부른 가수는?','나훈아'],['가수','\'바램\'을 부른 가수는?','노사연'],['가수','\'내 나이가 어때서\'를 부른 가수는?','오승근'],
-['가수','\'안동역에서\'를 부른 가수는?','진성'],['가수','\'붉은 노을\'을 처음 부른 가수는?','이문세'],['가수','\'첫눈처럼 너에게 가겠다\'를 부른 가수는?','에일리'],
+['채팅','고마울 때 하는 말','고마워|고마워요'],['채팅','힘내라고 응원하는 말','힘내|힘내요'],['채팅','힘내라고 응원하는 말','파이팅|화이팅'],['채팅','지금 어디 있는지 물을 때','어디야?'],['채팅','언제 오는지 물을 때','언제 와?'],['채팅','잘했다고 칭찬할 때','잘했어|잘했어요'],['채팅','최고라고 칭찬할 때','최고야|최고'],['채팅','미안할 때 하는 말','미안해|미안해요'],['채팅','사랑을 전하는 말','사랑해|사랑해요'],['채팅','축하할 때 하는 말','축하해|축하해요'],['채팅','밥 먹었는지 물을 때','밥 먹었어?'],['채팅','알았다고 대답할 때','알았어|알았어요'],['채팅','잘 자라고 하는 말','잘 자|잘자요'],['채팅','조심히 가라고 하는 말','조심히 가|조심히 가요'],['채팅','보고 싶을 때 하는 말','보고 싶어|보고 싶어요'],['채팅','괜찮은지 물을 때','괜찮아?'],['채팅','오랜만에 인사할 때','오랜만이야|오랜만이에요'],['채팅','지금 뭐 하는지 물을 때','뭐 해?|뭐해'],['채팅','도착했다고 알릴 때','도착했어|도착했어요'],['채팅','곧 간다고 할 때','금방 갈게|금방 갈게요'],['채팅','수고했다고 하는 말','수고했어|수고했어요'],['채팅','생일을 축하할 때','생일 축하해|생일 축하해요'],['채팅','전화해 달라고 할 때','전화해|전화해요|전화해줘'],['채팅','아침에 잘 잤는지 물을 때','잘 잤어?|잘잤어요'],['채팅','좋다고 대답할 때','좋아|좋아요'],['채팅','빨리 오라고 할 때','얼른 와|얼른 와요'],['채팅','다음에 보자고 할 때','다음에 봐|다음에 봐요'],
 ['속담','가는 말이 고와야 ○○ 말이 곱다','오는'],['속담','원숭이도 ○○에서 떨어진다','나무'],['속담','세 살 버릇 ○○까지 간다','여든'],['속담','낮말은 새가 듣고 밤말은 ○가 듣는다','쥐'],['속담','티끌 모아 ○○','태산'],
 ['속담','소 잃고 ○○○ 고친다','외양간'],['속담','고래 싸움에 ○○ 등 터진다','새우'],['속담','등잔 밑이 ○○○','어둡다'],['속담','하늘의 별 ○○','따기'],['속담','누워서 ○ 먹기','떡']];
 const chosung=w=>[...w].map(ch=>{const c=ch.charCodeAt(0);return c>=0xAC00&&c<=0xD7A3?'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'[Math.floor((c-0xAC00)/588)]:ch}).join('');
-const nz=v=>v.replace(/\s+/g,'').toLowerCase();
+const nz=v=>v.replace(/[\s.,!?~^]+/g,'').toLowerCase();
 let QM='all',QT=10;try{QM=localStorage.getItem('ptype-qc')||'all';QT=+localStorage.getItem('ptype-qt2')||10}catch(e){}
+if(QM!=='all'&&!QZ.some(q=>q[0]===QM))QM='all';
 let Q=null,qTimer=0;
 function qChips(){
-  $('qModes').innerHTML=[['all','기본'],['생활','쉬운 생활'],['상식','상식'],['속담','속담'],['가수','가수']].map(([k,n])=>'<button type="button" data-qm="'+k+'" class="'+(k===QM?'on':'')+'">'+n+'</button>').join('');
+  $('qModes').innerHTML=[['all','기본'],['생활','쉬운 생활'],['상식','상식'],['속담','속담'],['채팅','채팅 말']].map(([k,n])=>'<button type="button" data-qm="'+k+'" class="'+(k===QM?'on':'')+'">'+n+'</button>').join('');
   $('qTimes').innerHTML=[5,7,10,15].map(t=>'<button type="button" data-qt="'+t+'" class="'+(t===QT?'on':'')+'">'+t+'초</button>').join('');
 }
 $('qModes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;QM=b.dataset.qm;try{localStorage.setItem('ptype-qc',QM)}catch(err){}openRain()});
@@ -370,27 +386,27 @@ $('qTimes').addEventListener('click',e=>{const b=e.target.closest('button');if(!
 function openRain(){stopRain();show('rain');qChips();Q=null;$('qModes').hidden=false;$('qTimes').hidden=false;$('qLives').textContent='♥♥♥♥♥';$('qBar').style.width='0';$('qTag').textContent='준비';$('qText').className='qtext';$('qText').textContent='해를 따라다니는 꽃은? → 해바라기';
   $('qFb').className='qfb';$('qFb').textContent='문제가 나오면 '+QT+'초 안에 정답을 치세요. 다섯 번 놓치면 끝나요. 모르면 넘겨도 괜찮아요.';$('qStart').hidden=false;$('qStart').textContent='시작';$('qScore').textContent='0점';$('gIn').value=''}
 function stopRain(){clearInterval(qTimer);if(Q)Q.over=true}
-function deck(){const pool=QZ.filter(q=>QM==='all'?q[0]!=='가수':q[0]===QM);return shuffle(pool)}
+function deck(){const pool=QZ.filter(q=>QM==='all'||q[0]===QM);return shuffle(pool)}
 function startQuiz(){stopRain();Q={deck:deck(),score:0,right:0,lives:5,streak:0,best:0,over:false,cur:null};$('qStart').hidden=true;$('qModes').hidden=true;$('qTimes').hidden=true;qHud();showQ();$('gIn').focus()}
 function qHud(){$('qLives').textContent='♥'.repeat(Q.lives)+'♡'.repeat(5-Q.lives);$('qScore').textContent=Q.score+'점 · '+Q.right+'개 맞힘'+(Q.streak>=3?' · '+Q.streak+'연속!':'')}
 function showQ(){
   if(!Q.deck.length)Q.deck=deck();
   const q=Q.deck.pop();Q.cur=q;Q.lock=false;Q.left=QT;Q.hinted=false;
   const ans=q[2].split('|')[0];
-  $('qTag').textContent=q[0]+' · '+[...ans].length+'글자';$('qText').className='qtext';$('qText').textContent=q[1];
-  $('qFb').className='qfb';$('qFb').textContent='';$('gIn').value='';
+  const chat=q[0]==='채팅';$('qTag').textContent=(chat?'채팅 말':q[0])+' · '+[...nz(ans)].length+'글자';$('qText').className='qtext';$('qText').textContent=chat?q[1]+'  '+chosung(ans):q[1];
+  $('qFb').className='qfb';$('qFb').textContent='';clearIn($('gIn'));
   clearInterval(qTimer);const t0=performance.now();
   qTimer=setInterval(()=>{if(Q.lock)return;Q.left=Math.max(0,QT-(performance.now()-t0)/1000);$('qBar').style.width=(Q.left/QT*100)+'%';
-    if(!Q.hinted&&Q.left<QT*2/3){Q.hinted=true;$('qFb').className='qfb';$('qFb').textContent='힌트: '+chosung(ans)}
+    if(!Q.hinted&&Q.left<QT*2/3){Q.hinted=true;$('qFb').className='qfb';$('qFb').textContent='힌트: '+(chat?[...ans][0]+chosung([...ans].slice(1).join('')):chosung(ans))}
     if(Q.left<=0)miss('시간 끝!')},50);
 }
 function isRight(v){return Q.cur[2].split('|').some(a=>nz(a)===nz(v))}
 function check(v,strict){
   if(!Q||Q.over||Q.lock)return;if(!v.trim())return;
-  if(isRight(v)){Q.lock=true;Q.streak++;const pts=10+Math.ceil(Q.left*2)+(Q.streak>=3?5:0);Q.score+=pts;Q.right++;$('qFb').className='qfb ok';$('qFb').textContent='정답! +'+pts+'점';qHud();setTimeout(()=>{$('gIn').value=''},0);setTimeout(nextQ,600)}
-  else if(strict){$('qFb').className='qfb bad';$('qFb').textContent='아니에요!';const i=$('gIn');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake');setTimeout(()=>{i.value=''},0)}
+  if(isRight(v)){Q.lock=true;Q.streak++;const pts=10+Math.ceil(Q.left*2)+(Q.streak>=3?5:0);Q.score+=pts;Q.right++;$('qFb').className='qfb ok';$('qFb').textContent='정답! +'+pts+'점';qHud();clearIn($('gIn'));setTimeout(nextQ,600)}
+  else if(strict){$('qFb').className='qfb bad';$('qFb').textContent='아니에요!';const i=$('gIn');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake');clearIn(i)}
 }
-function miss(msg,free){if(!Q||Q.lock)return;Q.lock=true;if(!free)Q.lives--;Q.streak=0;qHud();$('qFb').className='qfb bad';$('qFb').textContent=msg+' 정답은 「'+Q.cur[2].split('|')[0]+'」';setTimeout(()=>{$('gIn').value=''},0);setTimeout(()=>{Q.lives<=0?endQuiz():nextQ()},1300)}
+function miss(msg,free){if(!Q||Q.lock)return;Q.lock=true;if(!free)Q.lives--;Q.streak=0;qHud();$('qFb').className='qfb bad';$('qFb').textContent=msg+' 정답은 「'+Q.cur[2].split('|')[0]+'」';clearIn($('gIn'));setTimeout(()=>{Q.lives<=0?endQuiz():nextQ()},1300)}
 function nextQ(){if(!Q||Q.over)return;showQ()}
 function endQuiz(){
   clearInterval(qTimer);Q.over=true;const old=rec.rain||0;if(Q.score>old){rec.rain=Q.score;saveRec()}
@@ -398,8 +414,8 @@ function endQuiz(){
   $('qFb').className='qfb';$('qFb').textContent=Q.right+'문제 맞혔어요.'+(Q.score>old?' 새 최고 기록!':(old?' 최고 기록은 '+old+'점.':''));
   $('qStart').hidden=false;$('qStart').textContent='다시 하기';$('qModes').hidden=false;$('qTimes').hidden=false;
 }
-$('gIn').addEventListener('input',()=>check($('gIn').value,false));
-$('gForm').addEventListener('submit',e=>{e.preventDefault();if(!Q||Q.over){startQuiz();return}check($('gIn').value,true)});
+$('gIn').addEventListener('input',()=>{if(!IMEBUSY)check($('gIn').value,false)});
+$('gForm').addEventListener('submit',e=>{e.preventDefault();if(!Q||Q.over){startQuiz();return}endIME($('gIn'));check($('gIn').value,true)});
 $('qSkip').addEventListener('click',()=>{if(Q&&!Q.over)miss('넘겼어요.',true);$('gIn').focus()});
 $('qStart').addEventListener('click',startQuiz);
 /* ---------- 자리 연습 ---------- */
@@ -429,7 +445,7 @@ $('kSnd').addEventListener('change',()=>{K.snd=$('kSnd').checked;saveK();$('kRep
 $('kRep').addEventListener('click',()=>{if(!K.over)say(NAMES[K.q[K.i]]||K.q[K.i],'kNote');$('kIn').focus()});
 $('kHide').addEventListener('change',()=>{K.hide=$('kHide').checked;saveK();drawKb();$('kIn').focus()});
 function newRound(){const set=[...LV[K.lay][Math.min(K.lv,LV[K.lay].length-1)][1]];let q=[],prev='';for(let i=0;i<20;i++){let c;do{c=set[Math.random()*set.length|0]}while(c===prev&&set.length>1);q.push(c);prev=c}
-  K.q=q;K.i=0;K.t0=0;K.last=0;K.err=0;K.times=[];K.over=false;$('kIn').value='';$('jSpd').textContent='–';showJamo()}
+  K.q=q;K.i=0;K.t0=0;K.last=0;K.err=0;K.times=[];K.over=false;clearIn($('kIn'));$('jSpd').textContent='–';showJamo()}
 function showJamo(){
   const t=K.q[K.i];$('jCh').textContent=K.snd?'?':t;$('jCh').className='ch';
   if(K.snd)say(NAMES[t]||t,'kNote');
@@ -458,18 +474,18 @@ function drawKb(){
     kb.innerHTML=CJK.map(k=>'<span class="k'+(k.length?'':' e')+((t&&(k.includes(t)||(seq&&seq.includes(k[0]))))?' hl':'')+'">'+(k.join('')||'&nbsp;')+'</span>').join('')}
 }
 $('kIn').addEventListener('input',e=>{
-  if(K.over||(e.inputType||'').startsWith('delete'))return;
+  if(IMEBUSY||K.over||(e.inputType||'').startsWith('delete'))return;
   const v=$('kIn').value;if(!v)return;const j=lastJamo(v),t=K.q[K.i],now=performance.now();
   if(!K.t0){K.t0=now;K.last=now}
   if(j===t){
     if(K.i>0||K.times.length)K.times.push(now-K.last);K.last=now;
     $('jCh').textContent=t;$('jCh').className='ch okf';K.i++;
     if(K.times.length)$('jSpd').textContent=(K.times.reduce((a,b)=>a+b,0)/K.times.length/1000).toFixed(2)+'초';
-    setTimeout(()=>{$('kIn').value=''},0);
+    clearIn($('kIn'));
     if(K.i>=20)return endPos();
     setTimeout(()=>{if(!K.over)showJamo()},K.snd?350:120);
-  }else if(K.lay==='qw'){K.err++;$('jCh').className='ch badf';setTimeout(()=>{$('kIn').value='';if(!K.over)$('jCh').className='ch'},180)}
-  else if([...v].length>3)setTimeout(()=>{$('kIn').value=''},0);
+  }else if(K.lay==='qw'){K.err++;$('jCh').className='ch badf';setTimeout(()=>{clearIn($('kIn'));if(!K.over)$('jCh').className='ch'},180)}
+  else if([...v].length>3)clearIn($('kIn'));
 });
 $('kForm').addEventListener('submit',e=>{e.preventDefault();if(K.over){newRound()}});
 function endPos(){
